@@ -10,7 +10,7 @@ import java.util.List;
 final class RequestInterceptorTape implements RequestInterceptor.RequestFacade, RequestInterceptor {
 
   private final List<CommandWithParams> tape = new ArrayList<CommandWithParams>();
-
+	private RestMethodInfo methodInfo;
   @Override public void addHeader(String name, String value) {
     tape.add(new CommandWithParams(Command.ADD_HEADER, name, value));
   }
@@ -31,6 +31,14 @@ final class RequestInterceptorTape implements RequestInterceptor.RequestFacade, 
     tape.add(new CommandWithParams(Command.ADD_ENCODED_QUERY_PARAM, name, value));
   }
 
+	public void setMethodInfo(RestMethodInfo methodInfo) {
+		this.methodInfo = methodInfo;
+	}
+	@Override
+	public RestMethodInfo getMethodInfo() {
+		// Log.d("zqt", "getRelativeUrl-RequestInterceptorTape");
+		return methodInfo;
+	}
   @Override public void intercept(RequestFacade request) {
     for (CommandWithParams cwp : tape) {
       cwp.command.intercept(request, cwp.name, cwp.value);
@@ -83,4 +91,5 @@ final class RequestInterceptorTape implements RequestInterceptor.RequestFacade, 
       this.value = value;
     }
   }
+
 }

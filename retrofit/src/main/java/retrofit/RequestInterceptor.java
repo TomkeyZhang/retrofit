@@ -29,6 +29,8 @@ public interface RequestInterceptor {
      * existing query parameters.
      */
     void addEncodedQueryParam(String name, String value);
+
+		RestMethodInfo getMethodInfo();
   }
 
   /** A {@link RequestInterceptor} which does no modification of requests. */
