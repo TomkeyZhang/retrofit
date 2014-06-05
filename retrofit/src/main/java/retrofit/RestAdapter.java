@@ -112,7 +112,6 @@ import rx.subscriptions.Subscriptions;
 public class RestAdapter {
 	static final String THREAD_PREFIX = "Retrofit-";
 	static final String IDLE_THREAD_NAME = THREAD_PREFIX + "Idle";
-	public static boolean isDebug = false;
 	/** Simple logging abstraction for debug messages. */
 	public interface Log {
 		/** Log a debug message to the appropriate console. */
@@ -321,12 +320,9 @@ public class RestAdapter {
 
 			String serverUrl = server.getUrl();
 			String url = serverUrl; // Keep some url in case RequestBuilder throws an exception.
-			if (isDebug)
-				android.util.Log.d("zqt", " start invokeRequest");
 			try {
 				RequestBuilder requestBuilder = new RequestBuilder(serverUrl, methodInfo, converter);
 				requestBuilder.setArguments(args);
-				// android.util.Log.d("zqt", "methodInfo.requestUrl:" + methodInfo.requestUrl);
 				methodInfo.setRelativeUrl(requestBuilder.getRelativeUrl());
 				methodInfo.setArgs(args);
 				if (requestInterceptor instanceof RequestInterceptorTape) {
@@ -339,8 +335,6 @@ public class RestAdapter {
 				}
 				Request request = requestBuilder.build();
 				url = request.getUrl();
-				if (isDebug)
-				android.util.Log.d("zqt", "invokeRequest:" + request.getUrl());
 				if (!methodInfo.isSynchronous) {
 					// If we are executing asynchronously then update the current thread with a useful name.
 					Thread.currentThread().setName(THREAD_PREFIX + url.substring(serverUrl.length()));

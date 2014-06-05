@@ -1,7 +1,9 @@
 // Copyright 2013 Square, Inc.
 package retrofit.client;
 
-import com.google.common.io.ByteStreams;
+import static org.assertj.core.api.Assertions.assertThat;
+import static retrofit.TestingUtils.assertBytes;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -9,13 +11,14 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.junit.Test;
+
 import retrofit.TestingUtils;
 import retrofit.mime.TypedOutput;
 import retrofit.mime.TypedString;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static retrofit.TestingUtils.assertBytes;
+import com.google.common.io.ByteStreams;
 
 public class UrlConnectionClientTest {
   private static final String HOST = "http://example.com";

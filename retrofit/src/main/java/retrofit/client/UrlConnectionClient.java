@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package retrofit.client;
 
 import java.io.IOException;
@@ -22,99 +23,129 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
 import retrofit.mime.TypedInput;
 import retrofit.mime.TypedOutput;
+import android.os.Build;
 
 /** Retrofit client that uses {@link HttpURLConnection} for communication. */
 public class UrlConnectionClient implements Client {
-  private static final int CHUNK_SIZE = 4096;
+    private static final int CHUNK_SIZE = 4096;
+    private static final boolean isAndroid = isAndroid();
 
-  public UrlConnectionClient() {
-  }
-
-  @Override public Response execute(Request request) throws IOException {
-    HttpURLConnection connection = openConnection(request);
-    prepareRequest(connection, request);
-    return readResponse(connection);
-  }
-
-  protected HttpURLConnection openConnection(Request request) throws IOException {
-    HttpURLConnection connection =
-        (HttpURLConnection) new URL(request.getUrl()).openConnection();
-    connection.setConnectTimeout(Defaults.CONNECT_TIMEOUT_MILLIS);
-    connection.setReadTimeout(Defaults.READ_TIMEOUT_MILLIS);
-    return connection;
-  }
-
-  void prepareRequest(HttpURLConnection connection, Request request) throws IOException {
-    connection.setRequestMethod(request.getMethod());
-    connection.setDoInput(true);
-
-    for (Header header : request.getHeaders()) {
-      connection.addRequestProperty(header.getName(), header.getValue());
+    private static boolean isAndroid() {
+        try {
+            Class.forName("android.os.Build");
+            return true;
+        } catch (ClassNotFoundException ignored) {
+            return false;
+        }
     }
 
-    TypedOutput body = request.getBody();
-    if (body != null) {
-      connection.setDoOutput(true);
-      connection.addRequestProperty("Content-Type", body.mimeType());
-      long length = body.length();
-      if (length != -1) {
-        connection.setFixedLengthStreamingMode((int) length);
-        connection.addRequestProperty("Content-Length", String.valueOf(length));
-      } else {
-        connection.setChunkedStreamingMode(CHUNK_SIZE);
-      }
-      body.writeTo(connection.getOutputStream());
-    }
-  }
-
-  Response readResponse(HttpURLConnection connection) throws IOException {
-    int status = connection.getResponseCode();
-    String reason = connection.getResponseMessage();
-    if (reason == null) reason = ""; // HttpURLConnection treats empty reason as null.
-
-    List<Header> headers = new ArrayList<Header>();
-    for (Map.Entry<String, List<String>> field : connection.getHeaderFields().entrySet()) {
-      String name = field.getKey();
-      for (String value : field.getValue()) {
-        headers.add(new Header(name, value));
-      }
+    public UrlConnectionClient() {
     }
 
-    String mimeType = connection.getContentType();
-    int length = connection.getContentLength();
-    InputStream stream;
-    if (status >= 400) {
-      stream = connection.getErrorStream();
-    } else {
-      stream = connection.getInputStream();
-    }
-    TypedInput responseBody = new TypedInputStream(mimeType, length, stream);
-    return new Response(connection.getURL().toString(), status, reason, headers, responseBody);
-  }
-
-  private static class TypedInputStream implements TypedInput {
-    private final String mimeType;
-    private final long length;
-    private final InputStream stream;
-
-    private TypedInputStream(String mimeType, long length, InputStream stream) {
-      this.mimeType = mimeType;
-      this.length = length;
-      this.stream = stream;
+    @Override
+    public Response execute(Request request) throws IOException {
+        HttpURLConnection connection = openConnection(request);
+        prepareRequest(connection, request);
+        return readResponse(connection);
     }
 
-    @Override public String mimeType() {
-      return mimeType;
+    protected HttpURLConnection openConnection(Request request)
+            throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(
+                request.getUrl()).openConnection();
+        connection.setConnectTimeout(Defaults.CONNECT_TIMEOUT_MILLIS);
+        connection.setReadTimeout(Defaults.READ_TIMEOUT_MILLIS);
+        if (isAndroid) {// 解决android中的EOFException
+            if (Build.VERSION.SDK_INT > 13) {
+                connection.setRequestProperty("Connection", "close"); // sdk3.2之后用这个
+            } else {
+                connection.setRequestProperty("http.keepAlive", "false"); // sdk2.2之前用这个
+            }
+        }
+        return connection;
     }
 
-    @Override public long length() {
-      return length;
+    void prepareRequest(HttpURLConnection connection, Request request)
+            throws IOException {
+        connection.setRequestMethod(request.getMethod());
+        connection.setDoInput(true);
+
+        for (Header header : request.getHeaders()) {
+            connection.addRequestProperty(header.getName(), header.getValue());
+        }
+
+        TypedOutput body = request.getBody();
+        if (body != null) {
+            connection.setDoOutput(true);
+            connection.addRequestProperty("Content-Type", body.mimeType());
+            long length = body.length();
+            if (length != -1) {
+                connection.setFixedLengthStreamingMode((int) length);
+                connection.addRequestProperty("Content-Length",
+                        String.valueOf(length));
+            } else {
+                connection.setChunkedStreamingMode(CHUNK_SIZE);
+            }
+            body.writeTo(connection.getOutputStream());
+        }
     }
 
-    @Override public InputStream in() throws IOException {
-      return stream;
+    Response readResponse(HttpURLConnection connection) throws IOException {
+        int status = connection.getResponseCode();
+        String reason = connection.getResponseMessage();
+        if (reason == null)
+            reason = ""; // HttpURLConnection treats empty reason as null.
+
+        List<Header> headers = new ArrayList<Header>();
+        for (Map.Entry<String, List<String>> field : connection
+                .getHeaderFields().entrySet()) {
+            String name = field.getKey();
+            for (String value : field.getValue()) {
+                headers.add(new Header(name, value));
+            }
+        }
+
+        String mimeType = connection.getContentType();
+        int length = connection.getContentLength();
+        InputStream stream;
+        if (status >= 400) {
+            stream = connection.getErrorStream();
+        } else {
+            stream = connection.getInputStream();
+        }
+        TypedInput responseBody = new TypedInputStream(mimeType, length, stream);
+        return new Response(connection.getURL().toString(), status, reason,
+                headers, responseBody);
     }
-  }
+
+    private static class TypedInputStream implements TypedInput {
+        private final String mimeType;
+        private final long length;
+        private final InputStream stream;
+
+        private TypedInputStream(String mimeType, long length,
+                InputStream stream) {
+            this.mimeType = mimeType;
+            this.length = length;
+            this.stream = stream;
+        }
+
+        @Override
+        public String mimeType() {
+            return mimeType;
+        }
+
+        @Override
+        public long length() {
+            return length;
+        }
+
+        @Override
+        public InputStream in() throws IOException {
+            return stream;
+        }
+    }
 }
