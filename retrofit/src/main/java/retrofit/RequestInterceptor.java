@@ -1,5 +1,7 @@
 package retrofit;
 
+import retrofit.client.Request;
+
 /** Intercept every request before it is executed in order to add additional data. */
 public interface RequestInterceptor {
   /** Called for every request. Add data using methods on the supplied {@link RequestFacade}. */
@@ -30,7 +32,7 @@ public interface RequestInterceptor {
      */
     void addEncodedQueryParam(String name, String value);
 
-		RestMethodInfo getMethodInfo();
+	Request getRequest();
   }
 
   /** A {@link RequestInterceptor} which does no modification of requests. */

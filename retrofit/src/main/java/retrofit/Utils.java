@@ -26,7 +26,7 @@ import retrofit.mime.TypedByteArray;
 import retrofit.mime.TypedInput;
 import retrofit.mime.TypedOutput;
 
-final class Utils {
+public final class Utils {
   private static final int BUFFER_SIZE = 0x1000;
 
   /**
@@ -51,7 +51,7 @@ final class Utils {
    * Conditionally replace a {@link Request} with an identical copy whose body is backed by a
    * byte[] rather than an input stream.
    */
-  static Request readBodyToBytesIfNecessary(Request request) throws IOException {
+ public static Request readBodyToBytesIfNecessary(Request request) throws IOException {
     TypedOutput body = request.getBody();
     if (body == null || body instanceof TypedByteArray) {
       return request;

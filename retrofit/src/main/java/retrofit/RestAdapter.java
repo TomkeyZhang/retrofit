@@ -18,6 +18,7 @@ package retrofit;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -112,6 +113,7 @@ import rx.subscriptions.Subscriptions;
 public class RestAdapter {
 	static final String THREAD_PREFIX = "Retrofit-";
 	static final String IDLE_THREAD_NAME = THREAD_PREFIX + "Idle";
+
 	/** Simple logging abstraction for debug messages. */
 	public interface Log {
 		/** Log a debug message to the appropriate console. */
@@ -129,14 +131,18 @@ public class RestAdapter {
 	public enum LogLevel {
 		/** No logging. */
 		NONE,
-		/** Log only the request method and URL and the response status code and execution time. */
+		/**
+		 * Log only the request method and URL and the response status code and
+		 * execution time.
+		 */
 		BASIC,
 		/** Log the basic information along with request and response headers. */
 		HEADERS,
 		/**
 		 * Log the headers, body, and metadata for both requests and responses.
 		 * <p>
-		 * Note: This requires that the entire request and response body be buffered in memory!
+		 * Note: This requires that the entire request and response body be
+		 * buffered in memory!
 		 */
 		FULL;
 
@@ -161,8 +167,11 @@ public class RestAdapter {
 
 	volatile LogLevel logLevel;
 
-	private RestAdapter(Endpoint server, Client.Provider clientProvider, Executor httpExecutor, Executor callbackExecutor,
-			RequestInterceptor requestInterceptor, Converter converter, Profiler profiler, ErrorHandler errorHandler, Log log, LogLevel logLevel) {
+	private RestAdapter(Endpoint server, Client.Provider clientProvider,
+			Executor httpExecutor, Executor callbackExecutor,
+			RequestInterceptor requestInterceptor, Converter converter,
+			Profiler profiler, ErrorHandler errorHandler, Log log,
+			LogLevel logLevel) {
 		this.server = server;
 		this.clientProvider = clientProvider;
 		this.httpExecutor = httpExecutor;
@@ -193,16 +202,22 @@ public class RestAdapter {
 		return logLevel;
 	}
 
-	/** Create an implementation of the API defined by the specified {@code service} interface. */
+	/**
+	 * Create an implementation of the API defined by the specified
+	 * {@code service} interface.
+	 */
 	@SuppressWarnings("unchecked")
 	public <T> T create(Class<T> service) {
 		Utils.validateServiceClass(service);
-		return (T) Proxy.newProxyInstance(service.getClassLoader(), new Class<?>[] { service }, new RestHandler(getMethodInfoCache(service)));
+		return (T) Proxy.newProxyInstance(service.getClassLoader(),
+				new Class<?>[] { service }, new RestHandler(
+						getMethodInfoCache(service)));
 	}
 
 	Map<Method, RestMethodInfo> getMethodInfoCache(Class<?> service) {
 		synchronized (serviceMethodInfoCache) {
-			Map<Method, RestMethodInfo> methodInfoCache = serviceMethodInfoCache.get(service);
+			Map<Method, RestMethodInfo> methodInfoCache = serviceMethodInfoCache
+					.get(service);
 			if (methodInfoCache == null) {
 				methodInfoCache = new LinkedHashMap<Method, RestMethodInfo>();
 				serviceMethodInfoCache.put(service, methodInfoCache);
@@ -211,7 +226,8 @@ public class RestAdapter {
 		}
 	}
 
-	static RestMethodInfo getMethodInfo(Map<Method, RestMethodInfo> cache, Method method) {
+	static RestMethodInfo getMethodInfo(Map<Method, RestMethodInfo> cache,
+			Method method) {
 		synchronized (cache) {
 			RestMethodInfo methodInfo = cache.get(method);
 			if (methodInfo == null) {
@@ -230,10 +246,12 @@ public class RestAdapter {
 			this.scheduler = Schedulers.executor(executor);
 		}
 
-		Observable createRequestObservable(final Callable<ResponseWrapper> request) {
+		Observable createRequestObservable(
+				final Callable<ResponseWrapper> request) {
 			return Observable.create(new Observable.OnSubscribeFunc<Object>() {
 				@Override
-				public Subscription onSubscribe(Observer<? super Object> observer) {
+				public Subscription onSubscribe(
+						Observer<? super Object> observer) {
 					try {
 						ResponseWrapper wrapper = request.call();
 						observer.onNext(wrapper.responseBody);
@@ -241,7 +259,8 @@ public class RestAdapter {
 					} catch (RetrofitError e) {
 						observer.onError(e);
 					} catch (Exception e) {
-						// This is from the Callable. It shouldn't actually throw.
+						// This is from the Callable. It shouldn't actually
+						// throw.
 						throw new RuntimeException(e);
 					}
 					return Subscriptions.empty();
@@ -260,14 +279,17 @@ public class RestAdapter {
 		@SuppressWarnings("unchecked")
 		//
 		@Override
-		public Object invoke(Object proxy, Method method, final Object[] args) throws Throwable {
-			// If the method is a method from Object then defer to normal invocation.
+		public Object invoke(Object proxy, Method method, final Object[] args)
+				throws Throwable {
+			// If the method is a method from Object then defer to normal
+			// invocation.
 			if (method.getDeclaringClass() == Object.class) {
 				return method.invoke(this, args);
 			}
 
 			// Load or create the details cache for the current method.
-			final RestMethodInfo methodInfo = getMethodInfo(methodDetailsCache, method);
+			final RestMethodInfo methodInfo = getMethodInfo(methodDetailsCache,
+					method);
 
 			if (methodInfo.isSynchronous) {
 				try {
@@ -275,69 +297,87 @@ public class RestAdapter {
 				} catch (RetrofitError error) {
 					Throwable newError = errorHandler.handleError(error);
 					if (newError == null) {
-						throw new IllegalStateException("Error handler returned null for wrapped exception.", error);
+						throw new IllegalStateException(
+								"Error handler returned null for wrapped exception.",
+								error);
 					}
 					throw newError;
 				}
 			}
 
 			if (httpExecutor == null || callbackExecutor == null) {
-				throw new IllegalStateException("Asynchronous invocation requires calling setExecutors.");
+				throw new IllegalStateException(
+						"Asynchronous invocation requires calling setExecutors.");
 			}
 
-			// Apply the interceptor synchronously, recording the interception so we can replay it later.
-			// This way we still defer argument serialization to the background thread.
-			final RequestInterceptorTape interceptorTape = new RequestInterceptorTape();
+			// Apply the interceptor synchronously, recording the interception
+			// so we can replay it later.
+			// This way we still defer argument serialization to the background
+			// thread.
+//			final RequestInterceptorTape interceptorTape = new RequestInterceptorTape();
 
 			if (methodInfo.isObservable) {
-				return rxSupport.createRequestObservable(new Callable<ResponseWrapper>() {
-					@Override
-					public ResponseWrapper call() throws Exception {
-						return (ResponseWrapper) invokeRequest(interceptorTape, methodInfo, args);
-					}
-				});
+				return rxSupport
+						.createRequestObservable(new Callable<ResponseWrapper>() {
+							@Override
+							public ResponseWrapper call() throws Exception {
+								return (ResponseWrapper) invokeRequest(
+										requestInterceptor, methodInfo, args);
+							}
+						});
 			}
 
 			Callback<?> callback = (Callback<?>) args[args.length - 1];
-			httpExecutor.execute(new CallbackRunnable(callback, callbackExecutor) {
+			httpExecutor.execute(new CallbackRunnable(callback,
+					callbackExecutor) {
 				@Override
 				public ResponseWrapper obtainResponse() {
-					return (ResponseWrapper) invokeRequest(interceptorTape, methodInfo, args);
+					return (ResponseWrapper) invokeRequest(requestInterceptor,
+							methodInfo, args);
 				}
 			});
-			return null; // Asynchronous methods should have return type of void.
+			return null; // Asynchronous methods should have return type of
+							// void.
 		}
 
 		/**
 		 * Execute an HTTP request.
 		 * 
-		 * @return HTTP response object of specified {@code type} or {@code null}.
+		 * @return HTTP response object of specified {@code type} or
+		 *         {@code null}.
 		 * @throws RetrofitError
 		 *             if any error occurs during the HTTP request.
 		 */
-		private Object invokeRequest(RequestInterceptor requestInterceptor, RestMethodInfo methodInfo, Object[] args) {
-			methodInfo.init(); // Ensure all relevant method information has been loaded.
+		private Object invokeRequest(RequestInterceptor requestInterceptor,
+				RestMethodInfo methodInfo, Object[] args) {
+			methodInfo.init(); // Ensure all relevant method information has
+								// been loaded.
 
 			String serverUrl = server.getUrl();
-			String url = serverUrl; // Keep some url in case RequestBuilder throws an exception.
+			String url = serverUrl; // Keep some url in case RequestBuilder
+									// throws an exception.
 			try {
-				RequestBuilder requestBuilder = new RequestBuilder(serverUrl, methodInfo, converter);
+				RequestBuilder requestBuilder = new RequestBuilder(serverUrl,
+						methodInfo, converter);
 				requestBuilder.setArguments(args);
-				methodInfo.setRelativeUrl(requestBuilder.getRelativeUrl());
-				methodInfo.setArgs(args);
-				if (requestInterceptor instanceof RequestInterceptorTape) {
-					RequestInterceptorTape interceptorTape = (RequestInterceptorTape) requestInterceptor;
-					interceptorTape.setMethodInfo(methodInfo);
-					RestAdapter.this.requestInterceptor.intercept(interceptorTape);
-					interceptorTape.intercept(requestBuilder);
-				} else {
-					requestInterceptor.intercept(requestBuilder);
-				}
+				
+//				methodInfo.setBody(getBody(requestBuilder.build()));
+//				if (requestInterceptor instanceof RequestInterceptorTape) {
+//					RequestInterceptorTape interceptorTape = (RequestInterceptorTape) requestInterceptor;
+//					interceptorTape.setMethodInfo(methodInfo);
+//					RestAdapter.this.requestInterceptor
+//							.intercept(interceptorTape);
+//					interceptorTape.intercept(requestBuilder);
+//				} else {
+//				}
+				requestInterceptor.intercept(requestBuilder);
 				Request request = requestBuilder.build();
 				url = request.getUrl();
 				if (!methodInfo.isSynchronous) {
-					// If we are executing asynchronously then update the current thread with a useful name.
-					Thread.currentThread().setName(THREAD_PREFIX + url.substring(serverUrl.length()));
+					// If we are executing asynchronously then update the
+					// current thread with a useful name.
+					Thread.currentThread().setName(
+							THREAD_PREFIX + url.substring(serverUrl.length()));
 				}
 
 				if (logLevel.log()) {
@@ -352,13 +392,16 @@ public class RestAdapter {
 
 				long start = System.nanoTime();
 				Response response = clientProvider.get().execute(request);
-				long elapsedTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+				long elapsedTime = TimeUnit.NANOSECONDS.toMillis(System
+						.nanoTime() - start);
 
 				int statusCode = response.getStatus();
 				if (profiler != null) {
-					RequestInformation requestInfo = getRequestInfo(serverUrl, methodInfo, request);
+					RequestInformation requestInfo = getRequestInfo(serverUrl,
+							methodInfo, request);
 					// noinspection unchecked
-					profiler.afterCall(requestInfo, elapsedTime, statusCode, profilerObject);
+					profiler.afterCall(requestInfo, elapsedTime, statusCode,
+							profilerObject);
 				}
 
 				if (logLevel.log()) {
@@ -368,10 +411,13 @@ public class RestAdapter {
 
 				Type type = methodInfo.responseObjectType;
 
-				if (statusCode >= 200 && statusCode < 300) { // 2XX == successful request
+				if (statusCode >= 200 && statusCode < 300) { // 2XX ==
+																// successful
+																// request
 					// Caller requested the raw Response object directly.
 					if (type.equals(Response.class)) {
-						// Read the entire stream and replace with one backed by a byte[]
+						// Read the entire stream and replace with one backed by
+						// a byte[]
 						response = Utils.readBodyToBytesIfNecessary(response);
 
 						if (methodInfo.isSynchronous) {
@@ -385,7 +431,8 @@ public class RestAdapter {
 						return new ResponseWrapper(response, null);
 					}
 
-					ExceptionCatchingTypedInput wrapped = new ExceptionCatchingTypedInput(body);
+					ExceptionCatchingTypedInput wrapped = new ExceptionCatchingTypedInput(
+							body);
 					try {
 						Object convert = converter.fromBody(wrapped, type);
 						if (methodInfo.isSynchronous) {
@@ -393,16 +440,19 @@ public class RestAdapter {
 						}
 						return new ResponseWrapper(response, convert);
 					} catch (ConversionException e) {
-						// If the underlying input stream threw an exception, propagate that rather than
+						// If the underlying input stream threw an exception,
+						// propagate that rather than
 						// indicating that it was a conversion exception.
 						if (wrapped.threwException()) {
 							throw wrapped.getThrownException();
 						}
 
-						// The response body was partially read by the converter. Replace it with null.
+						// The response body was partially read by the
+						// converter. Replace it with null.
 						response = Utils.replaceResponseBody(response, null);
 
-						throw RetrofitError.conversionError(url, response, converter, type, e);
+						throw RetrofitError.conversionError(url, response,
+								converter, type, e);
 					}
 				}
 
@@ -428,9 +478,14 @@ public class RestAdapter {
 		}
 	}
 
-	/** Log request headers and body. Consumes request body and returns identical replacement. */
-	Request logAndReplaceRequest(String name, Request request) throws IOException {
-		log.log(String.format("---> %s %s %s", name, request.getMethod(), request.getUrl()));
+	/**
+	 * Log request headers and body. Consumes request body and returns identical
+	 * replacement.
+	 */
+	Request logAndReplaceRequest(String name, Request request)
+			throws IOException {
+		log.log(String.format("---> %s %s %s", name, request.getMethod(),
+				request.getUrl()));
 
 		if (logLevel.ordinal() >= LogLevel.HEADERS.ordinal()) {
 			for (Header header : request.getHeaders()) {
@@ -455,7 +510,8 @@ public class RestAdapter {
 						log.log("");
 					}
 					if (!(body instanceof TypedByteArray)) {
-						// Read the entire response body to we can log it and replace the original response
+						// Read the entire response body to we can log it and
+						// replace the original response
 						request = Utils.readBodyToBytesIfNecessary(request);
 						body = request.getBody();
 					}
@@ -473,9 +529,35 @@ public class RestAdapter {
 		return request;
 	}
 
-	/** Log response headers and body. Consumes response body and returns identical replacement. */
-	private Response logAndReplaceResponse(String url, Response response, long elapsedTime) throws IOException {
-		log.log(String.format("<--- HTTP %s %s (%sms)", response.getStatus(), url, elapsedTime));
+	private String getBody(Request request){
+		TypedOutput body = request.getBody();
+		if (body != null) {
+			try {
+				if (!(body instanceof TypedByteArray)) {
+					// Read the entire response body to we can log it and replace
+					// the original response
+					request = Utils.readBodyToBytesIfNecessary(request);
+					body = request.getBody();
+				}
+				byte[] bodyBytes = ((TypedByteArray) body).getBytes();
+				String bodyCharset = MimeUtil.parseCharset(body.mimeType());
+				return new String(bodyBytes, bodyCharset);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return "";
+
+	}
+
+	/**
+	 * Log response headers and body. Consumes response body and returns
+	 * identical replacement.
+	 */
+	private Response logAndReplaceResponse(String url, Response response,
+			long elapsedTime) throws IOException {
+		log.log(String.format("<--- HTTP %s %s (%sms)", response.getStatus(),
+				url, elapsedTime));
 
 		if (logLevel.ordinal() >= LogLevel.HEADERS.ordinal()) {
 			for (Header header : response.getHeaders()) {
@@ -493,7 +575,8 @@ public class RestAdapter {
 					}
 
 					if (!(body instanceof TypedByteArray)) {
-						// Read the entire response body so we can log it and replace the original response
+						// Read the entire response body so we can log it and
+						// replace the original response
 						response = Utils.readBodyToBytesIfNecessary(response);
 						body = response.getBody();
 					}
@@ -512,7 +595,10 @@ public class RestAdapter {
 		return response;
 	}
 
-	/** Log an exception that occurred during the processing of a request or response. */
+	/**
+	 * Log an exception that occurred during the processing of a request or
+	 * response.
+	 */
 	void logException(Throwable t, String url) {
 		log.log(String.format("---- ERROR %s", url));
 		StringWriter sw = new StringWriter();
@@ -521,7 +607,8 @@ public class RestAdapter {
 		log.log("---- END ERROR");
 	}
 
-	private static Profiler.RequestInformation getRequestInfo(String serverUrl, RestMethodInfo methodDetails, Request request) {
+	private static Profiler.RequestInformation getRequestInfo(String serverUrl,
+			RestMethodInfo methodDetails, Request request) {
 		long contentLength = 0;
 		String contentType = null;
 
@@ -531,7 +618,8 @@ public class RestAdapter {
 			contentType = body.mimeType();
 		}
 
-		return new Profiler.RequestInformation(methodDetails.requestMethod, serverUrl, methodDetails.requestUrl, contentLength, contentType);
+		return new Profiler.RequestInformation(methodDetails.requestMethod,
+				serverUrl, methodDetails.requestUrl, contentLength, contentType);
 	}
 
 	/**
@@ -544,9 +632,12 @@ public class RestAdapter {
 	 * <li>{@link #setConverter(Converter)}</li>
 	 * </ul>
 	 * <p>
-	 * If you are using asynchronous execution (i.e., with {@link Callback Callbacks}) the following is also required:
+	 * If you are using asynchronous execution (i.e., with {@link Callback
+	 * Callbacks}) the following is also required:
 	 * <ul>
-	 * <li>{@link #setExecutors(java.util.concurrent.Executor, java.util.concurrent.Executor)}</li>
+	 * <li>
+	 * {@link #setExecutors(java.util.concurrent.Executor, java.util.concurrent.Executor)}
+	 * </li>
 	 * </ul>
 	 */
 	public static class Builder {
@@ -564,8 +655,9 @@ public class RestAdapter {
 		/**
 		 * API server base URL.
 		 * 
-		 * @deprecated Use {@link #setEndpoint(String)} or {@link #setEndpoint(Endpoint)}. This method will be removed
-		 *             in version 1.5.
+		 * @deprecated Use {@link #setEndpoint(String)} or
+		 *             {@link #setEndpoint(Endpoint)}. This method will be
+		 *             removed in version 1.5.
 		 */
 		@Deprecated
 		public Builder setServer(String server) {
@@ -575,8 +667,9 @@ public class RestAdapter {
 		/**
 		 * API server.
 		 * 
-		 * @deprecated Use {@link #setEndpoint(String)} or {@link #setEndpoint(Endpoint)}. This method will be removed
-		 *             in version 1.5.
+		 * @deprecated Use {@link #setEndpoint(String)} or
+		 *             {@link #setEndpoint(Endpoint)}. This method will be
+		 *             removed in version 1.5.
 		 */
 		@Deprecated
 		public Builder setServer(Server server) {
@@ -617,7 +710,8 @@ public class RestAdapter {
 		/** The HTTP client used for requests. */
 		public Builder setClient(Client.Provider clientProvider) {
 			if (clientProvider == null) {
-				throw new NullPointerException("Client provider may not be null.");
+				throw new NullPointerException(
+						"Client provider may not be null.");
 			}
 			this.clientProvider = clientProvider;
 			return this;
@@ -629,10 +723,12 @@ public class RestAdapter {
 		 * @param httpExecutor
 		 *            Executor on which HTTP client calls will be made.
 		 * @param callbackExecutor
-		 *            Executor on which any {@link Callback} methods will be invoked. If this argument is {@code null}
-		 *            then callback methods will be run on the same thread as the HTTP client.
+		 *            Executor on which any {@link Callback} methods will be
+		 *            invoked. If this argument is {@code null} then callback
+		 *            methods will be run on the same thread as the HTTP client.
 		 */
-		public Builder setExecutors(Executor httpExecutor, Executor callbackExecutor) {
+		public Builder setExecutors(Executor httpExecutor,
+				Executor callbackExecutor) {
 			if (httpExecutor == null) {
 				throw new NullPointerException("HTTP executor may not be null.");
 			}
@@ -645,9 +741,11 @@ public class RestAdapter {
 		}
 
 		/** A request interceptor for adding data to every request. */
-		public Builder setRequestInterceptor(RequestInterceptor requestInterceptor) {
+		public Builder setRequestInterceptor(
+				RequestInterceptor requestInterceptor) {
 			if (requestInterceptor == null) {
-				throw new NullPointerException("Request interceptor may not be null.");
+				throw new NullPointerException(
+						"Request interceptor may not be null.");
 			}
 			this.requestInterceptor = requestInterceptor;
 			return this;
@@ -672,7 +770,8 @@ public class RestAdapter {
 		}
 
 		/**
-		 * The error handler allows you to customize the type of exception thrown for errors on synchronous requests.
+		 * The error handler allows you to customize the type of exception
+		 * thrown for errors on synchronous requests.
 		 */
 		public Builder setErrorHandler(ErrorHandler errorHandler) {
 			if (errorHandler == null) {
@@ -706,8 +805,9 @@ public class RestAdapter {
 				throw new IllegalArgumentException("Endpoint may not be null.");
 			}
 			ensureSaneDefaults();
-			return new RestAdapter(endpoint, clientProvider, httpExecutor, callbackExecutor, requestInterceptor, converter, profiler, errorHandler, log,
-					logLevel);
+			return new RestAdapter(endpoint, clientProvider, httpExecutor,
+					callbackExecutor, requestInterceptor, converter, profiler,
+					errorHandler, log, logLevel);
 		}
 
 		private void ensureSaneDefaults() {

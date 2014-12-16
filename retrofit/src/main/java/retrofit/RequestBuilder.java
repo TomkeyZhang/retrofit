@@ -315,10 +315,6 @@ final class RequestBuilder implements RequestInterceptor.RequestFacade {
 		return new Request(requestMethod, url.toString(), headers, body);
 	}
 
-	@Override
-	public RestMethodInfo getMethodInfo() {
-		return methodInfo;
-	}
 
 	public String getRelativeUrl() {
 		return relativeUrl;
@@ -326,5 +322,15 @@ final class RequestBuilder implements RequestInterceptor.RequestFacade {
 
 	public StringBuilder getQueryParams() {
 		return queryParams;
+	}
+
+	@Override
+	public Request getRequest() {
+		try {
+			return build();
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 }

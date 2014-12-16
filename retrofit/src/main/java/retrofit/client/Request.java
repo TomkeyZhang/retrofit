@@ -18,51 +18,85 @@ package retrofit.client;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import retrofit.Utils;
+import retrofit.mime.MimeUtil;
+import retrofit.mime.TypedByteArray;
 import retrofit.mime.TypedOutput;
 
 /** Encapsulates all of the information necessary to make an HTTP request. */
 public final class Request {
-  private final String method;
-  private final String url;
-  private final List<Header> headers;
-  private final TypedOutput body;
+	private final String method;
+	private final String url;
+	private final List<Header> headers;
+	private final TypedOutput body;
 
-  public Request(String method, String url, List<Header> headers, TypedOutput body) {
-    if (method == null) {
-      throw new NullPointerException("Method must not be null.");
-    }
-    if (url == null) {
-      throw new NullPointerException("URL must not be null.");
-    }
-    this.method = method;
-    this.url = url;
+	public Request(String method, String url, List<Header> headers,
+			TypedOutput body) {
+		if (method == null) {
+			throw new NullPointerException("Method must not be null.");
+		}
+		if (url == null) {
+			throw new NullPointerException("URL must not be null.");
+		}
+		this.method = method;
+		this.url = url;
 
-    if (headers == null) {
-      this.headers = Collections.emptyList();
-    } else {
-      this.headers = Collections.unmodifiableList(new ArrayList<Header>(headers));
-    }
+		if (headers == null) {
+			this.headers = Collections.emptyList();
+		} else {
+			this.headers = Collections.unmodifiableList(new ArrayList<Header>(
+					headers));
+		}
 
-    this.body = body;
-  }
+		this.body = body;
+	}
 
-  /** HTTP method verb. */
-  public String getMethod() {
-    return method;
-  }
+	/** HTTP method verb. */
+	public String getMethod() {
+		return method;
+	}
 
-  /** Target URL. */
-  public String getUrl() {
-    return url;
-  }
+	/** Target URL. */
+	public String getUrl() {
+		return url;
+	}
 
-  /** Returns an unmodifiable list of headers, never {@code null}. */
-  public List<Header> getHeaders() {
-    return headers;
-  }
+	/** Returns an unmodifiable list of headers, never {@code null}. */
+	public List<Header> getHeaders() {
+		return headers;
+	}
 
-  /** Returns the request body or {@code null}. */
-  public TypedOutput getBody() {
-    return body;
-  }
+	/** Returns the request body or {@code null}. */
+	public TypedOutput getBody() {
+		return body;
+	}
+
+	public String getBodyAsString() {
+		Request request = this;
+		TypedOutput body = request.getBody();
+		if (body != null) {
+			try {
+				if (!(body instanceof TypedByteArray)) {
+					// Read the entire response body to we can log it and
+					// replace
+					// the original response
+					request = Utils.readBodyToBytesIfNecessary(request);
+					body = request.getBody();
+				}
+				byte[] bodyBytes = ((TypedByteArray) body).getBytes();
+				String bodyCharset = MimeUtil.parseCharset(body.mimeType());
+				return new String(bodyBytes, bodyCharset);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		return "";
+	}
+	public String getQueryUrl() {
+		if(url.contains("?"))
+			return url.split("\\?")[1];
+		return "";
+	}
+	
 }

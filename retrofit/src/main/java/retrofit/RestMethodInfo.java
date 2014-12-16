@@ -43,6 +43,7 @@ import retrofit.http.Path;
 import retrofit.http.Query;
 import retrofit.http.QueryMap;
 import retrofit.http.RestMethod;
+import retrofit.mime.TypedOutput;
 import rx.Observable;
 
 /** Request metadata about a service interface declaration. */
@@ -93,6 +94,8 @@ public final class RestMethodInfo {
 	// Parameter-level details
 	String[] requestParamNames;
 	ParamUsage[] requestParamUsage;
+	
+	String body;
 
 	RestMethodInfo(Method method) {
 		this.method = method;
@@ -533,6 +536,14 @@ public final class RestMethodInfo {
 
 	public void setQueryParams(StringBuilder queryParams) {
 		this.queryParams = queryParams;
+	}
+
+	public String getBody() {
+		return body;
+	}
+
+	public void setBody(String body) {
+		this.body = body;
 	}
 
 }
