@@ -58,6 +58,8 @@ public class UrlConnectionClient implements Client {
                 request.getUrl()).openConnection();
         connection.setConnectTimeout(Defaults.CONNECT_TIMEOUT_MILLIS);
         connection.setReadTimeout(Defaults.READ_TIMEOUT_MILLIS);
+        connection.addRequestProperty("Cache-Control", "no-cache");
+        connection.setUseCaches(false);
         if (isAndroid) {// 解决android中的EOFException
             if (Build.VERSION.SDK_INT > 13) {
                 connection.setRequestProperty("Connection", "close"); // sdk3.2之后用这个
